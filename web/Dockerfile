@@ -32,13 +32,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libocct-modeling-algorithms-7.6t64 libocct-data-exchange-7.6t64 \
         libtbb12 libtbbmalloc2 \
     && rm -rf /var/lib/apt/lists/* \
-    && useradd -r -u 1000 -d /app -s /usr/sbin/nologin app
+    && useradd -r -d /app -s /usr/sbin/nologin app
 
 COPY --from=builder /src/stl2step/build/stl2step /usr/local/bin/stl2step
 COPY web/app/requirements.txt /app/requirements.txt
 RUN pip3 install --break-system-packages -r /app/requirements.txt
 COPY web/app/ /app/
-RUN mkdir -p /data && chown -R app:app /app /data
+RUN mkdir -p /data && chown -R app:app /app /data && chmod -R a+rX /app
 
 USER app
 WORKDIR /app
