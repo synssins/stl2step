@@ -526,9 +526,17 @@ function fmtAge(ts) {
   syncOptionControls();
   try {
     const h = await (await fetch('/api/health')).json();
-    el.ver.textContent = [h.version ? `v${h.version}` : null, h.engine ? `engine ${h.engine}` : null].filter(Boolean).join(' · ');
-    el.ver.title = 'stl2step-web version · engine version';
-    if (!h.converter) { el.ver.textContent = 'converter missing'; el.ver.style.color = 'var(--red)'; }
+    el.ver.replaceChildren(...[
+      ['container', h.version ? `stl2step-web ${h.version}` : '–'],
+      ['engine', h.converter ? (h.engine ? `stl2step ${h.engine}` : 'stl2step') : 'missing'],
+    ].map(([k, v]) => {
+      const row = document.createElement('div');
+      const kk = document.createElement('span'); kk.textContent = k;
+      const vv = document.createElement('span'); vv.textContent = v;
+      if (v === 'missing') vv.style.color = 'var(--red)';
+      row.append(kk, vv);
+      return row;
+    }));
   } catch { /* offline */ }
   el.viewStep.disabled = true;
   await refreshJobs();

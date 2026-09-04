@@ -384,7 +384,8 @@ async def lifespan(app: FastAPI):
     db_init()
     try:
         v = subprocess.run([STL2STEP_BIN, "--version"], capture_output=True, text=True, timeout=10, env=CLI_ENV)
-        ENGINE_VERSION = (v.stdout.strip() or v.stderr.strip()).splitlines()[0][:40] if (v.stdout or v.stderr) else ""
+        line = (v.stdout.strip() or v.stderr.strip()).splitlines()[0] if (v.stdout or v.stderr) else ""
+        ENGINE_VERSION = re.sub(r"^\s*stl2step\s+(version\s+)?", "", line, flags=re.I)[:40]
     except (OSError, subprocess.TimeoutExpired):
         ENGINE_VERSION = ""
     if not Path(STL2STEP_BIN).exists():

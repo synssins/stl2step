@@ -64,7 +64,14 @@ small { display: block; color: var(--muted); font-size: 11px; font-weight: 400; 
   font-weight: 600; letter-spacing: .01em; color: var(--accent);
 }
 .brand span:nth-child(2) { color: var(--text); }
-.ver { margin-left: auto; color: var(--muted); font: 11px var(--mono); white-space: nowrap; }
+.ver {
+  margin-top: auto; padding: 10px 16px 12px; border-top: 1px solid var(--line);
+  color: var(--muted); font: 11px var(--mono); display: flex; flex-direction: column; gap: 2px;
+  position: sticky; bottom: 0; background: var(--panel);
+}
+.ver div { display: flex; justify-content: space-between; gap: 12px; white-space: nowrap; }
+.ver span:first-child { color: var(--muted); }
+.ver span:last-child { color: var(--text-2); }
 
 .tabs { display: flex; padding: 0 12px; border-bottom: 1px solid var(--line); }
 .tabs [role=tab] {
