@@ -106,7 +106,13 @@ small { display: block; color: var(--muted); font-size: 11px; font-weight: 400; 
   padding: 8px 10px; border-radius: var(--radius-s);
   background: transparent; border: 1px solid transparent;
 }
-.picked li { grid-template-columns: 1fr auto; }
+.picked li { grid-template-columns: minmax(0, 1fr) auto; }
+.picked .text { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.picked .meta { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.picked .ext {
+  font: 600 10px var(--mono); letter-spacing: .04em; color: var(--accent);
+  border: 1px solid rgba(79,195,176,.4); border-radius: 3px; padding: 0 5px; line-height: 15px;
+}
 .picked li:hover, .hist li:hover { background: var(--panel-2); }
 .picked li.sel, .hist li.sel { background: var(--panel-2); border-color: var(--line-2); }
 .picked li .name, .hist li .name {

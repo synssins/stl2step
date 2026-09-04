@@ -163,10 +163,13 @@ function renderPicked() {
   el.picked.replaceChildren(...state.picked.map((p) => {
     const li = document.createElement('li');
     li.classList.toggle('sel', state.sel?.type === 'file' && state.sel.key === p.key);
-    li.innerHTML = `<div><button type="button" class="name"></button><div class="meta"></div></div>
+    li.innerHTML = `<div class="text"><button type="button" class="name"></button>
+        <div class="meta"><span class="size"></span><span class="ext"></span></div></div>
       <button type="button" class="icon-btn" aria-label="Remove from list">${ICON.trash}</button>`;
     li.querySelector('.name').textContent = p.file.name;
-    li.querySelector('.meta').textContent = fmtBytes(p.file.size);
+    li.querySelector('.name').title = p.file.name;
+    li.querySelector('.size').textContent = fmtBytes(p.file.size);
+    li.querySelector('.ext').textContent = p.file.name.split('.').pop().toUpperCase();
     li.querySelector('.name').addEventListener('click', () => selectFile(p.key));
     li.querySelector('.icon-btn').addEventListener('click', () => removeFile(p.key));
     return li;
