@@ -1,6 +1,10 @@
 #!/bin/sh
-# Start as root, align the app user with PUID/PGID, own /data, drop privileges.
+# As root: align the app user with PUID/PGID, own /data, drop privileges.
+# Not root (compose `user:` override): nothing to fix, just run.
 set -e
+if [ "$(id -u)" != "0" ]; then
+    exec "$@"
+fi
 PUID="${PUID:-1000}"
 PGID="${PGID:-1000}"
 groupmod -o -g "$PGID" app
