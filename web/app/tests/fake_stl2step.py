@@ -5,6 +5,10 @@ import sys
 
 argv = sys.argv[1:]
 
+if argv == ["--version"]:
+    print("1.2.0-fake")
+    sys.exit(0)
+
 
 def arg(flag, default=None):
     return argv[argv.index(flag) + 1] if flag in argv else default

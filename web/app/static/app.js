@@ -526,6 +526,8 @@ function fmtAge(ts) {
   syncOptionControls();
   try {
     const h = await (await fetch('/api/health')).json();
+    el.ver.textContent = [h.version ? `v${h.version}` : null, h.engine ? `engine ${h.engine}` : null].filter(Boolean).join(' · ');
+    el.ver.title = 'stl2step-web version · engine version';
     if (!h.converter) { el.ver.textContent = 'converter missing'; el.ver.style.color = 'var(--red)'; }
   } catch { /* offline */ }
   el.viewStep.disabled = true;

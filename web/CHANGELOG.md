@@ -1,5 +1,13 @@
 # Changelog — stl2step-web
 
+Version shown in the UI header comes from `WEB_VERSION` in `app/main.py`; bump it with each release.
+
+## 0.2.0 — 2026-09-04
+
+- UI header shows `v<web> · engine <stl2step --version>`; `/api/health` gains `version` and `engine`.
+- App files (`/`, `app.js`, `viewer.js`, `style.css`) are served `Cache-Control: no-cache` so a redeploy
+  never needs a hard refresh; `/vendor/` stays cacheable.
+
 ## 2026-09-04 (input formats)
 
 - Browser preview for OBJ, FBX, PLY and 3MF before conversion: three.js `OBJLoader`, `FBXLoader`, `PLYLoader`,

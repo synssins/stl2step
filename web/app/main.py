@@ -36,8 +36,10 @@ log = logging.getLogger("stl2step-web")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
 # ---------- config ----------
+WEB_VERSION = "0.2.0"
 STL2STEP_BIN = os.environ.get("STL2STEP_BIN", "/usr/local/bin/stl2step")
 ASSIMP_BIN = os.environ.get("ASSIMP_BIN", "/usr/bin/assimp")
+ENGINE_VERSION = ""
 DATA_DIR = Path(os.environ.get("DATA_DIR", "/data"))
 JOBS_DIR = DATA_DIR / "jobs"
 DB_PATH = DATA_DIR / "jobs.db"
@@ -378,7 +380,13 @@ async def retention_loop() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global ENGINE_VERSION
     db_init()
+    try:
+        v = subprocess.run([STL2STEP_BIN, "--version"], capture_output=True, text=True, timeout=10, env=CLI_ENV)
+        ENGINE_VERSION = (v.stdout.strip() or v.stderr.strip()).splitlines()[0][:40] if (v.stdout or v.stderr) else ""
+    except (OSError, subprocess.TimeoutExpired):
+        ENGINE_VERSION = ""
     if not Path(STL2STEP_BIN).exists():
         log.error("stl2step binary not found at %s", STL2STEP_BIN)
     with db() as c:
@@ -405,6 +413,9 @@ async def security_headers(request: Request, call_next):
     resp.headers["X-Content-Type-Options"] = "nosniff"
     resp.headers["X-Frame-Options"] = "DENY"
     resp.headers["Referrer-Policy"] = "no-referrer"
+    p = request.url.path
+    if not p.startswith("/api/") and not p.startswith("/vendor/") and "Cache-Control" not in resp.headers:
+        resp.headers["Cache-Control"] = "no-cache"
     return resp
 
 
@@ -440,7 +451,8 @@ async def ingest(up: UploadFile, opts: ConvertOptions, source: str) -> str:
 # ---------- API ----------
 @app.get("/api/health")
 def health():
-    return {"ok": True, "converter": Path(STL2STEP_BIN).exists(), "importer": Path(ASSIMP_BIN).exists(),
+    return {"ok": True, "version": WEB_VERSION, "engine": ENGINE_VERSION,
+            "converter": Path(STL2STEP_BIN).exists(), "importer": Path(ASSIMP_BIN).exists(),
             "formats": list(MESH_KINDS), "queued": queue.qsize()}
 
 

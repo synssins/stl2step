@@ -64,7 +64,7 @@ small { display: block; color: var(--muted); font-size: 11px; font-weight: 400; 
   font-weight: 600; letter-spacing: .01em; color: var(--accent);
 }
 .brand span:nth-child(2) { color: var(--text); }
-.ver { margin-left: auto; color: var(--muted); font: 11px var(--mono); }
+.ver { margin-left: auto; color: var(--muted); font: 11px var(--mono); white-space: nowrap; }
 
 .tabs { display: flex; padding: 0 12px; border-bottom: 1px solid var(--line); }
 .tabs [role=tab] {
