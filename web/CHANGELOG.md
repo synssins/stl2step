@@ -4,7 +4,8 @@ Version shown in the UI header comes from `WEB_VERSION` in `app/main.py`; bump i
 
 ## 0.2.0 — 2026-09-04
 
-- UI header shows `v<web> · engine <stl2step --version>`; `/api/health` gains `version` and `engine`.
+- Version footer pinned to the bottom of the left sidebar, two lines: `container  stl2step-web 0.2.0` and
+  `engine  stl2step 1.2.0` (from `stl2step --version`); `/api/health` gains `version` and `engine`.
 - App files (`/`, `app.js`, `viewer.js`, `style.css`) are served `Cache-Control: no-cache` so a redeploy
   never needs a hard refresh; `/vendor/` stays cacheable.
 
