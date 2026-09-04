@@ -2,6 +2,9 @@
 
 ## 2026-09-04 (host fixes)
 
+- UI: with a history job selected and no new files picked, the primary button becomes
+  "Convert again · Verbatim|TrueForm" and reconverts that job with the current panel options
+  (same as the ↻ row icon). First run on the Docker host confirmed: `converter: true`, real conversions.
 - `entrypoint.sh`: start as root, set `app` to `PUID`/`PGID`, chown `/data` when needed, drop privileges
   with `setpriv`. Compose snippet uses `PUID`/`PGID` env instead of `user:`; no host-side chown.
 - Dockerfile: `app` user no longer pinned to UID 1000 (`ubuntu:24.04` already ships one).

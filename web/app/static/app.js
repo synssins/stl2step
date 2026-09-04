@@ -77,6 +77,7 @@ function setOpt(key, val) {
   state.opts[key] = val;
   storeOpts();
   syncOptionControls();
+  syncConvertButton();
 }
 document.querySelectorAll('.seg[data-opt] button').forEach((b) => b.addEventListener('click', () => {
   const key = b.closest('.seg').dataset.opt;
@@ -169,8 +170,15 @@ function renderPicked() {
     return li;
   }));
   el.pickedEmpty.hidden = state.picked.length > 0;
-  el.btnConvert.disabled = state.picked.length === 0;
-  el.btnConvert.textContent = state.picked.length > 1 ? `Convert ${state.picked.length} files to STEP` : 'Convert to STEP';
+  syncConvertButton();
+}
+function syncConvertButton() {
+  const n = state.picked.length;
+  const job = n === 0 && state.sel?.type === 'job' ? state.jobs.find((j) => j.id === state.sel.id) : null;
+  const canReconvert = !!job && !['queued', 'running'].includes(job.status);
+  el.btnConvert.disabled = n === 0 && !canReconvert;
+  el.btnConvert.textContent = n > 1 ? `Convert ${n} files to STEP` : n === 1 ? 'Convert to STEP'
+    : canReconvert ? `Convert again · ${state.opts.engine === 'trueform' ? 'TrueForm' : 'Verbatim'}` : 'Convert to STEP';
 }
 async function selectFile(key) {
   const p = state.picked.find((x) => x.key === key);
@@ -204,7 +212,10 @@ async function selectFile(key) {
 
 // ---------- convert ----------
 el.btnConvert.addEventListener('click', async () => {
-  if (!state.picked.length) return;
+  if (!state.picked.length) {
+    if (state.sel?.type === 'job') reconvert(state.sel.id);
+    return;
+  }
   const fd = new FormData();
   for (const p of state.picked) fd.append('files', p.file, p.file.name);
   for (const [k, v] of Object.entries(state.opts)) fd.append(k, String(v));
@@ -233,6 +244,7 @@ async function refreshJobs() {
     const prev = new Map(state.jobs.map((j) => [j.id, j.status]));
     state.jobs = (await r.json()).jobs;
     renderHistory();
+    syncConvertButton();
     const sel = state.sel?.type === 'job' ? state.jobs.find((j) => j.id === state.sel.id) : null;
     if (sel && prev.get(sel.id) !== sel.status && !['queued', 'running'].includes(sel.status)) selectJob(sel.id);
   } finally {
