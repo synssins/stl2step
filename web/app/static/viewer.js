@@ -1,11 +1,61 @@
 import * as THREE from './vendor/three.module.js';
 import { STLLoader } from './vendor/STLLoader.js';
+import { OBJLoader } from './vendor/OBJLoader.js';
+import { PLYLoader } from './vendor/PLYLoader.js';
+import { FBXLoader } from './vendor/FBXLoader.js';
+import { ThreeMFLoader } from './vendor/3MFLoader.js';
 import { OrbitControls } from './vendor/OrbitControls.js';
 
+// Loaders never fetch textures: every URL resolves to a 1x1 data-URI gif (CSP img-src allows data:).
+const quiet = new THREE.LoadingManager();
+quiet.setURLModifier(() => 'data:image/gif;base64,R0lGODlhAQABAAAAACw=');
 const stlLoader = new STLLoader();
 
 export function parseSTL(buffer) {
   const g = stlLoader.parse(buffer);
+  g.computeBoundingBox();
+  g.computeBoundingSphere();
+  return g;
+}
+
+// Any supported mesh file -> one non-indexed position-only BufferGeometry in world space.
+// Browser-side preview only; the server converts the original with assimp for the engine.
+export function parseMesh(name, buffer) {
+  const ext = name.split('.').pop().toLowerCase();
+  let root;
+  if (ext === 'stl') return parseSTL(buffer);
+  if (ext === 'obj') root = new OBJLoader(quiet).parse(new TextDecoder().decode(buffer));
+  else if (ext === 'ply') root = new PLYLoader(quiet).parse(buffer);
+  else if (ext === 'fbx') root = new FBXLoader(quiet).parse(buffer, '');
+  else if (ext === '3mf') root = new ThreeMFLoader(quiet).parse(buffer);
+  else throw new Error(`unsupported format .${ext}`);
+  return toSoup(root);
+}
+
+function toSoup(root) {
+  const chunks = [];
+  let total = 0;
+  const add = (geom, matrix) => {
+    let g = geom.index ? geom.toNonIndexed() : geom.clone();
+    if (matrix) g.applyMatrix4(matrix);
+    const p = g.attributes.position;
+    if (!p || p.count < 3) return;
+    const arr = p.array.length === p.count * 3 ? p.array : new Float32Array(p.array.buffer, p.array.byteOffset, p.count * 3);
+    chunks.push(arr);
+    total += arr.length;
+  };
+  if (root.isBufferGeometry) add(root, null);
+  else {
+    root.updateMatrixWorld(true);
+    root.traverse((o) => { if (o.isMesh && o.geometry) add(o.geometry, o.matrixWorld); });
+  }
+  if (!total) throw new Error('no triangles found');
+  const merged = new Float32Array(total);
+  let off = 0;
+  for (const c of chunks) { merged.set(c, off); off += c.length; }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(merged, 3));
+  g.computeVertexNormals();
   g.computeBoundingBox();
   g.computeBoundingSphere();
   return g;

@@ -2,6 +2,10 @@
 
 ## 2026-09-04 (input formats)
 
+- Browser preview for OBJ, FBX, PLY and 3MF before conversion: three.js `OBJLoader`, `FBXLoader`, `PLYLoader`,
+  `3MFLoader` (+ `fflate`, NURBS helpers) vendored from the same 0.185.1 tarball; every mesh in the file is
+  merged into one soup in world space. Loaders never fetch textures (URL modifier → 1×1 data-URI gif).
+  Server-side assimp import remains what the engine converts.
 - Fix: delete confirmation lost its armed state when the history list re-rendered (thumbnail upload,
   polling), so the second click only re-armed. State now lives in app state; armed button reads "Delete?",
   4 s window.

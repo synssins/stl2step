@@ -124,9 +124,12 @@ curl -X DELETE http://host:8480/api/jobs/<id>
 
 ## Viewer
 
-- three.js **0.185.1**, vendored in `app/static/vendor/` (see `VERSION.txt`). The bare `'three'` import in
-  `STLLoader.js` / `OrbitControls.js` is rewritten to `./three.module.js` because the CSP (`script-src 'self'`)
-  forbids an inline import map and CDN scripts.
+- three.js **0.185.1**, vendored in `app/static/vendor/` (see `VERSION.txt`): core, `STLLoader`, `OBJLoader`,
+  `FBXLoader`, `PLYLoader`, `3MFLoader`, `OrbitControls` and their helpers. Bare `'three'` / `../libs` imports
+  are rewritten to local paths because the CSP (`script-src 'self'`) forbids an inline import map and CDN
+  scripts. Picked files of every supported format are parsed in the browser for the pre-conversion preview;
+  the server's assimp import is what the engine actually converts, so the two can differ in detail (FBX unit
+  scale in particular).
 - **Import** view shows the uploaded mesh; wireframe = facet edges (`EdgesGeometry`, 1° threshold).
 - **STEP** view shows `preview.stl`; wireframe = the B-Rep edges from `preview.edges` drawn as `LineSegments`.
   That is what makes a TrueForm result visibly different from Verbatim.

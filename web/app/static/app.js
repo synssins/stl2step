@@ -1,4 +1,4 @@
-import { createViewer, parseSTL, parseEdges, openEdges } from './viewer.js';
+import { createViewer, parseSTL, parseMesh, parseEdges, openEdges } from './viewer.js';
 
 const $ = (id) => document.getElementById(id);
 const el = {
@@ -196,18 +196,14 @@ async function selectFile(key) {
   el.btnExport.setAttribute('aria-disabled', 'true');
   el.btnExport.href = '#';
   const seq = ++state.loadSeq;
-  if (!/\.stl$/i.test(p.file.name)) {
-    viewer.clear();
-    setStatus(`${p.file.name} — ${p.file.name.split('.').pop().toUpperCase()} is imported on the server; preview after conversion`);
-    return;
-  }
   if (!p.geometry) {
     overlay('Reading mesh…');
     try {
-      p.geometry = parseSTL(await p.file.arrayBuffer());
+      p.geometry = parseMesh(p.file.name, await p.file.arrayBuffer());
     } catch (e) {
       overlay(null);
-      setStatus(`${p.file.name} — could not parse STL`);
+      viewer.clear();
+      setStatus(`${p.file.name} — browser preview failed (${e.message}); the server import may still succeed`);
       return;
     }
     overlay(null);
