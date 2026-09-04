@@ -57,5 +57,16 @@ r = {"ok": True, "exitCode": 0, "input": inp, "output": out, "triangles": 908, "
 if arg("--engine") == "trueform":
     r.update({"smoothPlanes": 23, "smoothCylinders": 15, "smoothFillets": 0, "smoothRejected": 0,
               "facesAfterSmooth": 35})
+code = 0
+with open(inp, "rb") as f:
+    hdr = f.read(80).lower()
+if b"warn" in hdr or b"open" in hdr:
+    r["warnings"] = ["smooth: IntAna cyl|cyl empty/same — keeping mesh polyline"] * 4 + [
+        "smooth: IntAna plane|plane empty/same — keeping mesh polyline",
+        "J6: shell not closed freeEdges=16 faces=931 recover=0",
+        "smooth: analytic rebuild reverted on one component -- kept faceted"]
+    r["exitCode"] = code = 2
+    if b"open" in hdr:
+        r.update({"watertight": False, "openShells": 1})
 print("RESULT " + json.dumps(r))
-sys.exit(0)
+sys.exit(code)

@@ -1,4 +1,4 @@
-import { createViewer, parseSTL, parseEdges } from './viewer.js';
+import { createViewer, parseSTL, parseEdges, openEdges } from './viewer.js';
 
 const $ = (id) => document.getElementById(id);
 const el = {
@@ -118,7 +118,7 @@ function pressSeg(key, val) {
 function setShade(v) {
   state.shade = v;
   pressSeg('shade', v);
-  viewer.setWire(v === 'wire');
+  viewer.setMode(v);
 }
 function setView(v) {
   if (v === 'step' && !state.stepReady) return;
@@ -206,8 +206,12 @@ async function selectFile(key) {
     overlay(null);
   }
   if (seq !== state.loadSeq) return;
-  viewer.setModel(p.geometry, null);
-  setStatus(`${p.file.name} — ${fmtInt(p.geometry.attributes.position.count / 3)} triangles`);
+  p.open ??= openEdges(p.geometry);
+  viewer.setModel(p.geometry, null, p.open);
+  setStatus(`${p.file.name} — ${fmtInt(p.geometry.attributes.position.count / 3)} triangles${openNote(p.open)}`);
+}
+function openNote(open) {
+  return open ? ` — ${fmtInt(open.length / 6)} open edges (red)` : '';
 }
 
 // ---------- convert ----------
@@ -275,7 +279,7 @@ function renderHistory() {
     else thumb.innerHTML = ICON.cube;
     li.querySelector('.name').textContent = j.name;
     li.querySelector('.dot').classList.add(j.status);
-    li.querySelector('.m').textContent = [statusWord(j), faces != null ? `${fmtInt(faces)} faces` : null, fmtAge(j.created), j.source === 'api' ? 'api' : null].filter(Boolean).join(' · ');
+    li.querySelector('.m').textContent = [statusWord(j), engineLabel(j.options), faces != null ? `${fmtInt(faces)} faces` : null, fmtAge(j.created), j.source === 'api' ? 'api' : null].filter(Boolean).join(' · ');
     thumb.addEventListener('click', () => selectJob(j.id));
     li.querySelector('.name').addEventListener('click', () => selectJob(j.id));
     li.querySelector('[title="Convert again"]').addEventListener('click', () => reconvert(j.id));
@@ -296,6 +300,30 @@ function facesOf(j) {
 }
 function statusWord(j) {
   return { queued: 'queued', running: 'running', done: 'done', warn: 'warnings', failed: 'failed', error: 'error' }[j.status] || j.status;
+}
+function engineLabel(o) {
+  if (!o) return null;
+  return `${o.engine === 'trueform' ? 'TrueForm' : 'Verbatim'} ${o.schema || ''}`.trim();
+}
+
+// Engine warning strings -> what they mean for the user. Unknown strings pass through verbatim.
+const WARN_RULES = [
+  [/analytic rebuild reverted/i, 'TrueForm gave up on this body and wrote the faceted (Verbatim) result instead. Output is identical to a Verbatim conversion.'],
+  [/J6: shell not closed freeEdges=(\d+) faces=(\d+)/i, (m) => `The rebuilt analytic solid had ${m[1]} open edges after ${m[2]} faces and could not be closed, so it was discarded.`],
+  [/IntAna (\S+)\|(\S+) empty\/same/i, (m) => `Two recognised surfaces (${m[1]} / ${m[2]}) do not meet in a clean curve: their fitted axes or planes are slightly off from the mesh. The original mesh edge was kept there, which later prevents the shell from closing.`],
+  [/IntAna threw/i, 'OpenCASCADE failed while intersecting two recognised surfaces. The mesh edge was kept.'],
+  [/skipped \(dirty mesh/i, 'This body needed the mesh repair (sewing) pass, so TrueForm did not run on it. Fix the mesh (open edges, flipped facets) and reconvert.'],
+  [/open shell|not closed|free edge/i, 'The input mesh has holes or unshared edges. Switch to the Import view: open edges are drawn in red.'],
+  [/flipped|orientation|winding/i, 'Some facets face the wrong way. The engine fixed what it could; check the red edges in the Import view.'],
+  [/volume/i, 'The written STEP does not enclose the same volume as the mesh. Inspect the result before trusting it.'],
+  [/> ?500k|large mesh|triangles/i, 'Large mesh: conversion is slow and the STEP is big. Decimate upstream if you can.'],
+];
+function explainWarning(w) {
+  for (const [re, txt] of WARN_RULES) {
+    const m = w.match(re);
+    if (m) return typeof txt === 'function' ? txt(m) : txt;
+  }
+  return null;
 }
 
 async function selectJob(id, keepView = false) {
@@ -351,8 +379,9 @@ function showCurrent() {
     setStatus(`${stem(j.name)}.step — ${faces != null ? fmtInt(faces) + ' faces' : '? faces'} — ${fmtSec(j.result?.seconds)} s`);
   } else {
     if (!cache.input) { selectJob(j.id, true); return; }
-    viewer.setModel(cache.input, null);
-    setStatus(`${j.name} — ${fmtInt(j.result?.triangles ?? cache.input.attributes.position.count / 3)} triangles`);
+    if (cache.open === undefined) cache.open = openEdges(cache.input);
+    viewer.setModel(cache.input, null, cache.open);
+    setStatus(`${j.name} — ${fmtInt(j.result?.triangles ?? cache.input.attributes.position.count / 3)} triangles${openNote(cache.open)}`);
   }
 }
 async function sendThumb(j) {
@@ -427,8 +456,21 @@ function renderResult(j) {
   const warns = r?.warnings || [];
   el.warn.hidden = warns.length === 0;
   el.warn.open = false;
-  el.warnTitle.textContent = `${warns.length} warning${warns.length === 1 ? '' : 's'} — conversion completed with notes`;
-  el.warnList.replaceChildren(...warns.map((w) => { const li = document.createElement('li'); li.textContent = w; return li; }));
+  const reverted = warns.some((w) => /analytic rebuild reverted/i.test(w));
+  el.warnTitle.textContent = reverted
+    ? `${warns.length} warnings — TrueForm reverted, result is faceted`
+    : `${warns.length} warning${warns.length === 1 ? '' : 's'} — conversion completed with notes`;
+  const grouped = new Map();
+  for (const w of warns) grouped.set(w, (grouped.get(w) || 0) + 1);
+  el.warnList.replaceChildren(...[...grouped].map(([w, n]) => {
+    const li = document.createElement('li');
+    const raw = document.createElement('code');
+    raw.textContent = n > 1 ? `${w}  ×${n}` : w;
+    li.append(raw);
+    const why = explainWarning(w);
+    if (why) { const p = document.createElement('p'); p.textContent = why; li.append(p); }
+    return li;
+  }));
   const err = j.error || (r && r.ok === false ? r.error : null);
   el.resultErr.hidden = !err;
   el.resultErr.textContent = err || '';

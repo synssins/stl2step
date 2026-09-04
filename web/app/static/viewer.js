@@ -39,6 +39,7 @@ export function createViewer(canvas) {
     polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1,
   });
   const edgeMat = new THREE.LineBasicMaterial({ color: 0xf2f2f2 });
+  const openMat = new THREE.LineBasicMaterial({ color: 0xff4d4d, depthTest: false });
 
   const controls = new OrbitControls(camera, canvas);
   controls.enableDamping = false;
@@ -46,7 +47,7 @@ export function createViewer(canvas) {
 
   const model = new THREE.Group();
   scene.add(model);
-  let mesh = null, lines = null, wire = false;
+  let mesh = null, lines = null, featureLines = null, openLines = null, mode = 'shaded';
 
   // triad inset
   const triadScene = new THREE.Scene();
@@ -94,12 +95,12 @@ export function createViewer(canvas) {
   resize();
 
   function clear() {
-    for (const o of [mesh, lines]) if (o) { model.remove(o); o.geometry.dispose(); }
-    mesh = lines = null;
+    for (const o of [mesh, lines, featureLines, openLines]) if (o) { model.remove(o); o.geometry.dispose(); }
+    mesh = lines = featureLines = openLines = null;
     invalidate();
   }
 
-  function setModel(geometry, edges) {
+  function setModel(geometry, edges, openEdges) {
     clear();
     if (!geometry) return;
     mesh = new THREE.Mesh(geometry, meshMat);
@@ -112,9 +113,26 @@ export function createViewer(canvas) {
       lg = new THREE.EdgesGeometry(geometry, 1);
     }
     lines = new THREE.LineSegments(lg, edgeMat);
-    lines.visible = wire;
     model.add(lines);
+    if (openEdges && openEdges.length) {
+      const og = new THREE.BufferGeometry();
+      og.setAttribute('position', new THREE.BufferAttribute(openEdges, 3));
+      openLines = new THREE.LineSegments(og, openMat);
+      openLines.renderOrder = 10;
+      model.add(openLines);
+    }
+    applyMode();
     fit();
+  }
+
+  function applyMode() {
+    if (lines) lines.visible = mode === 'wire';
+    if (mode === 'feature' && mesh && !featureLines) {
+      featureLines = new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry, 20), edgeMat);
+      model.add(featureLines);
+    }
+    if (featureLines) featureLines.visible = mode === 'feature';
+    invalidate();
   }
 
   function fit() {
@@ -133,10 +151,9 @@ export function createViewer(canvas) {
     invalidate();
   }
 
-  function setWire(on) {
-    wire = !!on;
-    if (lines) lines.visible = wire;
-    invalidate();
+  function setMode(m) {
+    mode = m;
+    applyMode();
   }
 
   function snapshot(w = 192, h = 144) {
@@ -155,7 +172,40 @@ export function createViewer(canvas) {
     });
   }
 
-  return { setModel, setWire, fit, clear, snapshot, invalidate };
+  return { setModel, setMode, fit, clear, snapshot, invalidate };
+}
+
+// Boundary edges of a triangle soup: edges referenced by exactly one triangle.
+// ponytail: string-keyed hash, fine to ~1M triangles; skip above that.
+export function openEdges(geometry) {
+  const pos = geometry.attributes.position.array;
+  const tri = pos.length / 9;
+  if (tri > 1_000_000) return null;
+  const vid = new Map();
+  const ids = new Int32Array(tri * 3);
+  for (let i = 0; i < tri * 3; i++) {
+    const k = pos[i * 3].toFixed(5) + ',' + pos[i * 3 + 1].toFixed(5) + ',' + pos[i * 3 + 2].toFixed(5);
+    let id = vid.get(k);
+    if (id === undefined) { id = vid.size; vid.set(k, id); }
+    ids[i] = id;
+  }
+  const count = new Map();
+  for (let t = 0; t < tri; t++) {
+    for (let e = 0; e < 3; e++) {
+      const a = ids[t * 3 + e], b = ids[t * 3 + (e + 1) % 3];
+      const k = a < b ? a * 4294967296 + b : b * 4294967296 + a;
+      const v = count.get(k);
+      count.set(k, v ? { n: v.n + 1, i: v.i } : { n: 1, i: t * 3 + e });
+    }
+  }
+  const out = [];
+  for (const { n, i } of count.values()) {
+    if (n !== 1) continue;
+    const t = Math.floor(i / 3), e = i % 3;
+    const a = (t * 3 + e) * 3, b = (t * 3 + (e + 1) % 3) * 3;
+    out.push(pos[a], pos[a + 1], pos[a + 2], pos[b], pos[b + 1], pos[b + 2]);
+  }
+  return out.length ? new Float32Array(out) : null;
 }
 
 function makeTriad() {

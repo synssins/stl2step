@@ -2,6 +2,13 @@
 
 ## 2026-09-04 (host fixes)
 
+- History rows show engine + schema used (`TrueForm AP214`).
+- Warnings box: identical warnings grouped with a count, each known engine warning followed by a plain-English
+  explanation; title says "TrueForm reverted, result is faceted" when that happened.
+- Viewer: third shading mode **Feature edges** (facet edges hidden below a 20° crease, the CAD look);
+  open edges of the input mesh (edges owned by one triangle) drawn in red with a count in the status line.
+- Fake converter emits the XendStop warning set / open-shell result when the STL header contains
+  `warn` / `open`, for UI testing.
 - `Dockerfile.occt79`: same image against conda-forge OpenCASCADE 7.9 (the engine's CI calibration target).
   Motivation: XendStop.stl in TrueForm on 7.6.3 hit `IntAna cyl|cyl empty/same` ×4 → J6 16 free edges →
   component reverted to faceted (see repo `FINDINGS-CYLEDGES.md`).
