@@ -25,10 +25,10 @@
 
     <section class="pane" id="pane-files" role="tabpanel" aria-labelledby="tab-files">
       <label class="drop" id="drop">
-        <input type="file" id="files" accept=".stl,model/stl" multiple>
+        <input type="file" id="files" accept=".stl,.obj,.fbx,.ply,.3mf,model/stl" multiple>
         <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path d="M12 16V4m0 0-4 4m4-4 4 4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <span class="drop-main">Drop STL files or tap to choose</span>
-        <span class="drop-sub">Up to <span id="max-mb">200</span> MB each · binary or ASCII</span>
+        <span class="drop-main">Drop mesh files or tap to choose</span>
+        <span class="drop-sub">STL · OBJ · FBX · PLY · 3MF · up to <span id="max-mb">200</span> MB each</span>
       </label>
       <ul class="picked" id="picked" aria-label="Files ready to convert"></ul>
       <p class="empty" id="picked-empty">No files picked yet. Pick one to preview it in the viewport.</p>

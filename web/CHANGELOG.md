@@ -1,5 +1,16 @@
 # Changelog — stl2step-web
 
+## 2026-09-04 (input formats)
+
+- OBJ, FBX, PLY and 3MF accepted. Kind sniffed from content (binary STL layout, `solid…facet`,
+  `Kaydara FBX Binary` / `; FBX`, `ply`, zip with `3D/*.model`, OBJ `v` lines); display name follows the
+  sniffed kind. Non-STL uploads are stored as `source.<kind>` and converted to `input.stl` by `assimp export`
+  in the worker before stl2step runs (`assimp-utils` added to both images; `ASSIMP_BIN` env).
+  `GET input.stl` answers 409 while the import has not run yet. `/api/health` reports `importer` and `formats`.
+- Warnings: repeat count shown as a `(4×)` prefix; wording now says the IntAna/J6 failures break the TrueForm
+  rebuild that was discarded, not the faceted file that was written.
+- `tests/fake_assimp.py` (OBJ → binary STL) so the import path is covered by `test_api.py`.
+
 ## 2026-09-04 (host fixes)
 
 - History rows show engine + schema used (`TrueForm AP214`).

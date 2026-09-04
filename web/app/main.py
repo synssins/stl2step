@@ -37,6 +37,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 
 # ---------- config ----------
 STL2STEP_BIN = os.environ.get("STL2STEP_BIN", "/usr/local/bin/stl2step")
+ASSIMP_BIN = os.environ.get("ASSIMP_BIN", "/usr/bin/assimp")
 DATA_DIR = Path(os.environ.get("DATA_DIR", "/data"))
 JOBS_DIR = DATA_DIR / "jobs"
 DB_PATH = DATA_DIR / "jobs.db"
@@ -155,20 +156,39 @@ def row_to_dict(r: sqlite3.Row) -> dict:
 
 
 # ---------- upload validation ----------
-def validate_stl(path: Path) -> tuple[str, int]:
-    """Return (kind, triangle_count_or_-1). Raises HTTPException on anything that isn't an STL."""
+MESH_KINDS = ("stl", "obj", "fbx", "ply", "3mf")
+
+
+def sniff_mesh(path: Path) -> str:
+    """Return the mesh kind from content, ignoring the extension. Raises 400 for anything else."""
     size = path.stat().st_size
     if size < 15:
-        raise HTTPException(400, "File is too small to be an STL")
+        raise HTTPException(400, "File is too small to be a mesh")
     with path.open("rb") as f:
-        head = f.read(1024)
+        head = f.read(65536)
     if size >= 84:
         (n,) = struct.unpack_from("<I", head, 80)
         if 84 + 50 * n == size:
-            return "binary", n
-    if head.lstrip()[:5].lower() == b"solid" and b"facet" in head.lower():
-        return "ascii", -1
-    raise HTTPException(400, "Not a recognisable STL (neither binary layout nor ASCII 'solid ... facet')")
+            return "stl"
+    low = head.lower()
+    if low.lstrip()[:5] == b"solid" and b"facet" in low:
+        return "stl"
+    if head.startswith(b"Kaydara FBX Binary") or low.lstrip().startswith(b"; fbx"):
+        return "fbx"
+    if head.startswith(b"ply\n") or head.startswith(b"ply\r\n"):
+        return "ply"
+    if head.startswith(b"PK\x03\x04"):
+        try:
+            import zipfile
+            with zipfile.ZipFile(path) as z:
+                if any(n.lower().startswith("3d/") and n.lower().endswith(".model") for n in z.namelist()):
+                    return "3mf"
+        except zipfile.BadZipFile:
+            pass
+        raise HTTPException(400, "Zip file is not a 3MF")
+    if re.search(rb"(?m)^\s*v\s+-?[\d.]", head):
+        return "obj"
+    raise HTTPException(400, "Not a recognisable mesh (STL, OBJ, FBX, PLY or 3MF)")
 
 
 async def save_upload(up: UploadFile, dest: Path) -> int:
@@ -187,19 +207,47 @@ async def save_upload(up: UploadFile, dest: Path) -> int:
     return written
 
 
-def display_name(filename: Optional[str]) -> str:
-    base = Path(filename or "part.stl").name
-    base = SAFE_NAME_RE.sub("_", base).strip("._") or "part.stl"
-    if not base.lower().endswith(".stl"):
-        raise HTTPException(400, "Only .stl files are accepted")
+def display_name(filename: Optional[str], kind: str) -> str:
+    """Safe display name; the extension always reflects the sniffed kind, whatever the upload was called."""
+    base = Path(filename or f"part.{kind}").name
+    base = SAFE_NAME_RE.sub("_", base).strip("._") or f"part.{kind}"
+    stem, ext = os.path.splitext(base)
+    base = f"{stem}.{kind}" if ext.lower().lstrip(".") in MESH_KINDS else f"{base}.{kind}"
     return base[:120]
 
 
 # ---------- conversion (runs in thread pool) ----------
+def import_mesh(job_dir: Path) -> Optional[str]:
+    """Non-STL upload -> input.stl via assimp. Returns an error string, or None when input.stl exists."""
+    inp = job_dir / "input.stl"
+    if inp.exists():
+        return None
+    src = next((p for p in job_dir.glob("source.*")), None)
+    if src is None:
+        return "input mesh missing"
+    argv = [ASSIMP_BIN, "export", str(src), str(inp), "-fstlb", "-ptv", "-tri", "-jiv"]
+    try:
+        p = subprocess.run(argv, capture_output=True, text=True, timeout=JOB_TIMEOUT_SEC,
+                           cwd=job_dir, env=CLI_ENV)
+    except subprocess.TimeoutExpired:
+        return f"mesh import timed out after {JOB_TIMEOUT_SEC}s"
+    except OSError as e:
+        return f"could not start mesh importer ({e.__class__.__name__})"
+    (job_dir / "import.txt").write_text(p.stdout + p.stderr)
+    if p.returncode != 0 or not inp.exists() or inp.stat().st_size < 84:
+        inp.unlink(missing_ok=True)
+        tail = (p.stderr.strip() or p.stdout.strip()).splitlines()
+        return "mesh import failed: " + (tail[-1][:300] if tail else f"assimp exit {p.returncode}")
+    return None
+
+
 def run_conversion(job_dir: Path, opts: ConvertOptions) -> dict:
     inp, out = job_dir / "input.stl", job_dir / "output.step"
-    argv = opts.argv(inp, out)
     t0 = time.time()
+    err = import_mesh(job_dir)
+    if err:
+        return {"exit_code": None, "result": None, "seconds": time.time() - t0, "error": err}
+    argv = opts.argv(inp, out)
     try:
         p = subprocess.run(argv, capture_output=True, text=True, timeout=JOB_TIMEOUT_SEC,
                            cwd=job_dir, env=CLI_ENV)
@@ -371,13 +419,15 @@ def load_job(job_id: str) -> dict:
 
 
 async def ingest(up: UploadFile, opts: ConvertOptions, source: str) -> str:
-    name = display_name(up.filename)
     job_id = str(uuid.uuid4())
     job_dir = JOBS_DIR / job_id
     job_dir.mkdir(parents=True)
     try:
-        size = await save_upload(up, job_dir / "input.stl")
-        validate_stl(job_dir / "input.stl")
+        tmp = job_dir / "upload.tmp"
+        size = await save_upload(up, tmp)
+        kind = sniff_mesh(tmp)
+        tmp.rename(job_dir / ("input.stl" if kind == "stl" else f"source.{kind}"))
+        name = display_name(up.filename, kind)
     except HTTPException:
         shutil.rmtree(job_dir, ignore_errors=True)
         raise
@@ -390,7 +440,8 @@ async def ingest(up: UploadFile, opts: ConvertOptions, source: str) -> str:
 # ---------- API ----------
 @app.get("/api/health")
 def health():
-    return {"ok": True, "converter": Path(STL2STEP_BIN).exists(), "queued": queue.qsize()}
+    return {"ok": True, "converter": Path(STL2STEP_BIN).exists(), "importer": Path(ASSIMP_BIN).exists(),
+            "formats": list(MESH_KINDS), "queued": queue.qsize()}
 
 
 @app.get("/api/defaults")
@@ -442,6 +493,8 @@ def download_input(job_id: str):
     job = load_job(job_id)
     path = JOBS_DIR / job_id / "input.stl"
     if not path.exists():
+        if job["status"] in ("queued", "running"):
+            raise HTTPException(409, "Mesh not imported yet")
         raise HTTPException(404, "Input no longer available")
     return FileResponse(path, media_type="model/stl", filename=job["name"],
                         content_disposition_type="inline", headers={"Cache-Control": "private, max-age=86400"})

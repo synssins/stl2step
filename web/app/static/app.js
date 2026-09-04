@@ -136,7 +136,7 @@ document.addEventListener('drop', (e) => addFiles(e.dataTransfer.files));
 function addFiles(list) {
   let first = null;
   for (const f of list) {
-    if (!/\.stl$/i.test(f.name)) continue;
+    if (!/\.(stl|obj|fbx|ply|3mf)$/i.test(f.name)) continue;
     const key = `${f.name}:${f.size}:${f.lastModified}`;
     if (state.picked.some((p) => p.key === key)) continue;
     const p = { key, file: f, geometry: null };
@@ -194,6 +194,11 @@ async function selectFile(key) {
   el.btnExport.setAttribute('aria-disabled', 'true');
   el.btnExport.href = '#';
   const seq = ++state.loadSeq;
+  if (!/\.stl$/i.test(p.file.name)) {
+    viewer.clear();
+    setStatus(`${p.file.name} — ${p.file.name.split('.').pop().toUpperCase()} is imported on the server; preview after conversion`);
+    return;
+  }
   if (!p.geometry) {
     overlay('Reading mesh…');
     try {
@@ -308,10 +313,10 @@ function engineLabel(o) {
 
 // Engine warning strings -> what they mean for the user. Unknown strings pass through verbatim.
 const WARN_RULES = [
-  [/analytic rebuild reverted/i, 'TrueForm gave up on this body and wrote the faceted (Verbatim) result instead. Output is identical to a Verbatim conversion.'],
-  [/J6: shell not closed freeEdges=(\d+) faces=(\d+)/i, (m) => `The rebuilt analytic solid had ${m[1]} open edges after ${m[2]} faces and could not be closed, so it was discarded.`],
-  [/IntAna (\S+)\|(\S+) empty\/same/i, (m) => `Two recognised surfaces (${m[1]} / ${m[2]}) do not meet in a clean curve: their fitted axes or planes are slightly off from the mesh. The original mesh edge was kept there, which later prevents the shell from closing.`],
-  [/IntAna threw/i, 'OpenCASCADE failed while intersecting two recognised surfaces. The mesh edge was kept.'],
+  [/analytic rebuild reverted/i, 'TrueForm discarded its analytic rebuild of this body and wrote the faceted (Verbatim) result instead. The file you got is a valid faceted solid, identical to a Verbatim conversion.'],
+  [/J6: shell not closed freeEdges=(\d+) faces=(\d+)/i, (m) => `The TrueForm rebuild had ${m[1]} open edges after ${m[2]} analytic faces and could not be closed, so that rebuild was thrown away. This does not affect the faceted result that was written.`],
+  [/IntAna (\S+)\|(\S+) empty\/same/i, (m) => `Two recognised surfaces (${m[1]} / ${m[2]}) do not meet in a clean curve: their fitted axes or planes are slightly off from the mesh. TrueForm kept the mesh edge there, which is what later stops its rebuild from closing.`],
+  [/IntAna threw/i, 'OpenCASCADE failed while intersecting two recognised surfaces. TrueForm kept the mesh edge there.'],
   [/skipped \(dirty mesh/i, 'This body needed the mesh repair (sewing) pass, so TrueForm did not run on it. Fix the mesh (open edges, flipped facets) and reconvert.'],
   [/open shell|not closed|free edge/i, 'The input mesh has holes or unshared edges. Switch to the Import view: open edges are drawn in red.'],
   [/flipped|orientation|winding/i, 'Some facets face the wrong way. The engine fixed what it could; check the red edges in the Import view.'],
@@ -354,6 +359,11 @@ async function selectJob(id, keepView = false) {
         if (!j.preview) await refreshJobs();
       }
     } else if (!cache.input) {
+      if (['queued', 'running'].includes(j.status) && !/\.stl$/i.test(j.name)) {
+        viewer.clear();
+        setStatus(`${j.name} — importing on the server…`);
+        return;
+      }
       overlay('Loading mesh…');
       cache.input = parseSTL(await fetchBuf(`/api/jobs/${id}/input.stl`));
     }
@@ -465,7 +475,7 @@ function renderResult(j) {
   el.warnList.replaceChildren(...[...grouped].map(([w, n]) => {
     const li = document.createElement('li');
     const raw = document.createElement('code');
-    raw.textContent = n > 1 ? `${w}  ×${n}` : w;
+    raw.textContent = n > 1 ? `(${n}×) ${w}` : w;
     li.append(raw);
     const why = explainWarning(w);
     if (why) { const p = document.createElement('p'); p.textContent = why; li.append(p); }
@@ -488,7 +498,7 @@ async function fetchBuf(url) {
 async function errText(r) {
   try { const j = await r.json(); return j.detail || j.error || r.statusText; } catch { return r.statusText || `HTTP ${r.status}`; }
 }
-function stem(name) { return name.replace(/\.stl$/i, ''); }
+function stem(name) { return name.replace(/\.(stl|obj|fbx|ply|3mf)$/i, ''); }
 function fmtInt(n) { return n == null ? '–' : Number(n).toLocaleString(); }
 function fmtSec(s) { return s == null ? '–' : (s < 10 ? s.toFixed(2) : s.toFixed(1)); }
 function fmtBytes(b) { return b < 1048576 ? `${(b / 1024).toFixed(0)} KB` : `${(b / 1048576).toFixed(1)} MB`; }

@@ -41,6 +41,7 @@ The builder stage (`apt` OCCT dev packages + compile, ~1 min on 4 cores) is a ca
 | `RETAIN_DAYS` | `30` | Delete finished jobs older than this (`0` = keep forever). |
 | `DATA_DIR` | `/data` | Job files + `jobs.db` (SQLite). Mount it. |
 | `STL2STEP_BIN` | `/usr/local/bin/stl2step` | CLI path. |
+| `ASSIMP_BIN` | `/usr/bin/assimp` | Mesh importer for non-STL uploads. |
 
 ### The CMake patch (`occt-link.patch`)
 
@@ -59,6 +60,18 @@ volume delta 0.000 %). [`Dockerfile.occt79`](Dockerfile.occt79) is the same imag
 OCCT 7.9 (micromamba, `CMAKE_PREFIX_PATH=/opt/occt`, `LD_LIBRARY_PATH=/opt/occt/lib` at runtime); select it
 with `dockerfile: web/Dockerfile.occt79` in compose. `LD_LIBRARY_PATH` and any `STL2STEP_*` environment
 variables (engine diagnostics) are passed through to the CLI subprocess.
+
+## Input formats
+
+STL (binary or ASCII), OBJ, FBX, PLY, 3MF. The kind is detected from the file content, not the extension;
+a mislabelled upload gets its display name corrected. Anything that is not STL is converted to binary STL
+first by [assimp](https://github.com/assimp/assimp) (`assimp export in out -fstlb -ptv -tri -jiv`: node
+transforms baked, polygons triangulated, duplicate vertices joined; materials and hierarchy dropped) and then
+follows the normal path. The original upload is kept as `source.<kind>` in the job directory; `input.stl` is
+what the viewer and the engine use.
+
+Units are still yours to set: OBJ carries none, FBX usually means centimetres and assimp does not apply the
+file's unit scale on export. Use `units` / `scale`.
 
 ## API
 

@@ -27,7 +27,7 @@ RUN patch -p1 < /src/occt-link.patch \
 FROM ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        python3 python3-pip \
+        python3 python3-pip assimp-utils \
         libocct-foundation-7.6t64 libocct-modeling-data-7.6t64 \
         libocct-modeling-algorithms-7.6t64 libocct-data-exchange-7.6t64 \
         libtbb12 libtbbmalloc2 \
