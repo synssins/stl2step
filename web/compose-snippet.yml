@@ -1,7 +1,7 @@
   # stl2step-web - STL -> STEP (OpenCASCADE B-Rep) converter, web UI + API.
   # Built from the fork's web/ folder (branch web-ui until merged; then #main). Rebuild with:
   #   docker compose build --no-cache stl2step-web && docker compose up -d stl2step-web
-  # First run: mkdir -p ${DOCKERCONFDIR}/stl2step-web && chown ${PUID}:${PGID} that dir.
+  # Starts as root, chowns /data to PUID:PGID, then drops to that user.
   stl2step-web:
     container_name: stl2step-web
     build:
@@ -10,7 +10,6 @@
     image: stl2step-web:latest
     pull_policy: build
     restart: unless-stopped
-    user: ${PUID}:${PGID}
     logging:
       driver: json-file
       options:
@@ -19,6 +18,8 @@
     ports:
       - 8480:8080
     environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
       - TZ=${TZ}
       - MAX_UPLOAD_MB=200
       - JOB_TIMEOUT_SEC=600

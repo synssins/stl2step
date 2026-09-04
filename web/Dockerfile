@@ -38,9 +38,9 @@ COPY --from=builder /src/stl2step/build/stl2step /usr/local/bin/stl2step
 COPY web/app/requirements.txt /app/requirements.txt
 RUN pip3 install --break-system-packages -r /app/requirements.txt
 COPY web/app/ /app/
-RUN mkdir -p /data && chown -R app:app /app /data && chmod -R a+rX /app
+COPY web/entrypoint.sh /entrypoint.sh
+RUN mkdir -p /data && chown -R app:app /app /data && chmod +x /entrypoint.sh
 
-USER app
 WORKDIR /app
 ENV STL2STEP_BIN=/usr/local/bin/stl2step \
     DATA_DIR=/data \
@@ -50,4 +50,5 @@ ENV STL2STEP_BIN=/usr/local/bin/stl2step \
     RETAIN_DAYS=30
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s CMD python3 -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/api/health').status==200 else 1)"
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["python3", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]

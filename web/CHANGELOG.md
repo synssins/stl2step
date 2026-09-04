@@ -1,5 +1,11 @@
 # Changelog — stl2step-web
 
+## 2026-09-04 (host fixes)
+
+- `entrypoint.sh`: start as root, set `app` to `PUID`/`PGID`, chown `/data` when needed, drop privileges
+  with `setpriv`. Compose snippet uses `PUID`/`PGID` env instead of `user:`; no host-side chown.
+- Dockerfile: `app` user no longer pinned to UID 1000 (`ubuntu:24.04` already ships one).
+
 ## 2026-09-04
 
 - Moved into the fork as `web/`. Dockerfile now builds from the repository root (no in-image `git clone`);

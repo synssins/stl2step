@@ -25,11 +25,8 @@ straight from GitHub (`context: https://github.com/synssins/stl2step.git#main`, 
 and publishes port **8480**. Rebuild after a push with
 `docker compose build --no-cache stl2step-web && docker compose up -d stl2step-web`.
 
-Create the data directory before first start when running as a non-root user (the snippet uses `user: ${PUID}:${PGID}`):
-
-```sh
-mkdir -p "$DOCKERCONFDIR/stl2step-web" && chown "$PUID:$PGID" "$DOCKERCONFDIR/stl2step-web"
-```
+The container starts as root, sets the `app` user to `PUID`/`PGID` (default 1000/1000), chowns `/data` if
+needed, then drops privileges with `setpriv` before starting uvicorn. No host-side `chown` is required.
 
 The builder stage (`apt` OCCT dev packages + compile, ~1 min on 4 cores) is a cached Docker layer; only source changes rebuild it.
 
@@ -37,6 +34,7 @@ The builder stage (`apt` OCCT dev packages + compile, ~1 min on 4 cores) is a ca
 
 | Variable | Default | Meaning |
 |---|---|---|
+| `PUID`, `PGID` | `1000` | UID/GID the app runs as; `/data` is chowned to match at start. |
 | `MAX_UPLOAD_MB` | `200` | Per-file upload cap. |
 | `JOB_TIMEOUT_SEC` | `600` | Kill a conversion (or preview tessellation) after this. |
 | `CONCURRENCY` | `1` | Parallel conversions. Keep at 1: stl2step already uses every core per job. |
