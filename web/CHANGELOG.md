@@ -2,6 +2,9 @@
 
 ## 2026-09-04 (input formats)
 
+- Fix: delete confirmation lost its armed state when the history list re-rendered (thumbnail upload,
+  polling), so the second click only re-armed. State now lives in app state; armed button reads "Delete?",
+  4 s window.
 - OBJ, FBX, PLY and 3MF accepted. Kind sniffed from content (binary STL layout, `solid…facet`,
   `Kaydara FBX Binary` / `; FBX`, `ply`, zip with `3D/*.model`, OBJ `v` lines); display name follows the
   sniffed kind. Non-STL uploads are stored as `source.<kind>` and converted to `input.stl` by `assimp export`

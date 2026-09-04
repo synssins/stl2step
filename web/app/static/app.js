@@ -34,6 +34,8 @@ const state = {
   shade: 'shaded',
   stepReady: false,
   pollTimer: null,
+  armedDelete: null,
+  armedTimer: null,
   loadSeq: 0,
 };
 const geomCache = new Map();   // job id -> {input, preview, edges}
@@ -289,11 +291,17 @@ function renderHistory() {
     li.querySelector('.name').addEventListener('click', () => selectJob(j.id));
     li.querySelector('[title="Convert again"]').addEventListener('click', () => reconvert(j.id));
     const del = li.querySelector('.danger');
-    del.addEventListener('click', () => {
-      if (del.classList.contains('armed')) { deleteJob(j.id); return; }
+    if (state.armedDelete === j.id) {
       del.classList.add('armed');
+      del.textContent = 'Delete?';
       del.setAttribute('aria-label', 'Click again to confirm delete');
-      setTimeout(() => { del.classList.remove('armed'); del.setAttribute('aria-label', 'Delete job'); }, 2500);
+    }
+    del.addEventListener('click', () => {
+      if (state.armedDelete === j.id) { state.armedDelete = null; deleteJob(j.id); return; }
+      state.armedDelete = j.id;
+      clearTimeout(state.armedTimer);
+      state.armedTimer = setTimeout(() => { state.armedDelete = null; renderHistory(); }, 4000);
+      renderHistory();
     });
     return li;
   }));
