@@ -1,0 +1,3 @@
+three.js 0.185.1 (r185), https://registry.npmjs.org/three/-/three-0.185.1.tgz
+Files: build/three.module.js, build/three.core.js, examples/jsm/loaders/STLLoader.js, examples/jsm/controls/OrbitControls.js
+Only change: bare 'three' import specifier rewritten to './three.module.js' (no import map: CSP script-src 'self').

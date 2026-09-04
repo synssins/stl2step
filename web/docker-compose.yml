@@ -1,0 +1,19 @@
+# Standalone compose (dev / single-service). For the home stack use the
+# service block in compose-snippet.yml instead.
+services:
+  stl2step-web:
+    build:
+      context: ..
+      dockerfile: web/Dockerfile
+    image: stl2step-web:latest
+    container_name: stl2step-web
+    restart: unless-stopped
+    ports:
+      - "8480:8080"
+    volumes:
+      - ./data:/data
+    environment:
+      MAX_UPLOAD_MB: "200"
+      JOB_TIMEOUT_SEC: "600"
+      CONCURRENCY: "1"        # stl2step already uses all cores per job
+      RETAIN_DAYS: "30"       # delete job files older than this (0 = keep forever)

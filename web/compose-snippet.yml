@@ -1,0 +1,28 @@
+  # stl2step-web - STL -> STEP (OpenCASCADE B-Rep) converter, web UI + API.
+  # Built from the fork's web/ folder; rebuild with:
+  #   docker compose build --no-cache stl2step-web && docker compose up -d stl2step-web
+  # First run: mkdir -p ${DOCKERCONFDIR}/stl2step-web && chown ${PUID}:${PGID} that dir.
+  stl2step-web:
+    container_name: stl2step-web
+    build:
+      context: https://github.com/synssins/stl2step.git#main
+      dockerfile: web/Dockerfile
+    image: stl2step-web:latest
+    pull_policy: build
+    restart: unless-stopped
+    user: ${PUID}:${PGID}
+    logging:
+      driver: json-file
+      options:
+        max-file: ${DOCKERLOGGING_MAXFILE}
+        max-size: ${DOCKERLOGGING_MAXSIZE}
+    ports:
+      - 8480:8080
+    environment:
+      - TZ=${TZ}
+      - MAX_UPLOAD_MB=200
+      - JOB_TIMEOUT_SEC=600
+      - CONCURRENCY=1
+      - RETAIN_DAYS=30
+    volumes:
+      - ${DOCKERCONFDIR}/stl2step-web:/data

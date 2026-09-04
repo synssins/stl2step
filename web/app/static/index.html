@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>stl2step</title>
+<link rel="stylesheet" href="/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 1 15 5v6l-7 4-7-4V5z' fill='%234fc3b0'/%3E%3C/svg%3E">
+</head>
+<body>
+<div class="app" id="app">
+
+  <aside class="side" id="side" aria-label="Files and history">
+    <div class="brand">
+      <svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path d="M8 1 15 5v6l-7 4-7-4V5z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M1 5l7 4 7-4M8 9v6" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
+      <span>stl2step</span>
+      <span class="ver" id="ver"></span>
+    </div>
+
+    <div class="tabs" role="tablist" aria-label="Sidebar">
+      <button type="button" role="tab" id="tab-files" aria-selected="true" aria-controls="pane-files">Files</button>
+      <button type="button" role="tab" id="tab-history" aria-selected="false" aria-controls="pane-history">History <span class="count" id="hist-count"></span></button>
+    </div>
+
+    <section class="pane" id="pane-files" role="tabpanel" aria-labelledby="tab-files">
+      <label class="drop" id="drop">
+        <input type="file" id="files" accept=".stl,model/stl" multiple>
+        <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path d="M12 16V4m0 0-4 4m4-4 4 4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span class="drop-main">Drop STL files or tap to choose</span>
+        <span class="drop-sub">Up to <span id="max-mb">200</span> MB each · binary or ASCII</span>
+      </label>
+      <ul class="picked" id="picked" aria-label="Files ready to convert"></ul>
+      <p class="empty" id="picked-empty">No files picked yet. Pick one to preview it in the viewport.</p>
+    </section>
+
+    <section class="pane" id="pane-history" role="tabpanel" aria-labelledby="tab-history" hidden>
+      <ul class="hist" id="hist" aria-label="Job history"></ul>
+      <p class="empty" id="hist-empty">No jobs yet.</p>
+    </section>
+  </aside>
+
+  <main class="stage" id="stage">
+    <canvas id="gl" tabindex="0" aria-label="3D viewport. Drag to orbit, right-drag to pan, wheel to zoom."></canvas>
+    <div class="float top">
+      <div class="seg" role="radiogroup" aria-label="Model shown" data-key="view">
+        <button type="button" data-val="import" aria-pressed="true">Import</button>
+        <button type="button" data-val="step" aria-pressed="false" id="view-step">STEP</button>
+      </div>
+    </div>
+    <div class="float bottom">
+      <div class="seg" role="radiogroup" aria-label="Shading" data-key="shade">
+        <button type="button" data-val="shaded" aria-pressed="true">Shaded</button>
+        <button type="button" data-val="wire" aria-pressed="false">Shaded + Wireframe</button>
+      </div>
+    </div>
+    <div class="overlay" id="overlay" hidden><span id="overlay-text"></span></div>
+    <div class="status" id="status" aria-live="polite">Pick an STL to begin.</div>
+  </main>
+
+  <aside class="convert" aria-labelledby="convert-h">
+    <h2 id="convert-h">Convert</h2>
+
+    <div class="row">
+      <div class="seg wide" role="radiogroup" aria-label="Engine" data-opt="engine">
+        <button type="button" data-val="verbatim" aria-pressed="true">Verbatim</button>
+        <button type="button" data-val="trueform" aria-pressed="false">TrueForm</button>
+      </div>
+      <p class="hint" id="engine-hint">Byte-faithful. Flat regions merge into planar faces; curves stay faceted.</p>
+    </div>
+
+    <div class="row kv">
+      <span class="k">Schema</span>
+      <div class="seg" role="radiogroup" aria-label="STEP schema" data-opt="schema">
+        <button type="button" data-val="AP203" aria-pressed="false">AP203</button>
+        <button type="button" data-val="AP214" aria-pressed="true">AP214</button>
+        <button type="button" data-val="AP242" aria-pressed="false">AP242</button>
+      </div>
+    </div>
+
+    <div class="row kv">
+      <span class="k">Units<small>output always mm</small></span>
+      <div class="seg" role="radiogroup" aria-label="STL units" data-opt="units">
+        <button type="button" data-val="mm" aria-pressed="true">mm</button>
+        <button type="button" data-val="in" aria-pressed="false">in</button>
+      </div>
+    </div>
+
+    <div class="row kv" id="tol-row">
+      <span class="k">Tolerance<small>TrueForm surface fit</small></span>
+      <div class="stepper" data-opt="smooth_tol" data-steps="0,0.005,0.01,0.02,0.05,0.1,0.2,0.5,1">
+        <button type="button" data-dir="-1" aria-label="Decrease tolerance">−</button>
+        <output id="tol-out">auto</output>
+        <button type="button" data-dir="1" aria-label="Increase tolerance">+</button>
+      </div>
+    </div>
+
+    <details class="adv" id="adv">
+      <summary>Advanced</summary>
+      <div class="row kv">
+        <span class="k">Scale</span>
+        <input type="number" data-opt="scale" value="1" min="0.0001" max="10000" step="any" inputmode="decimal" aria-label="Uniform scale">
+      </div>
+      <div class="row kv">
+        <span class="k">Weld<small>mm</small></span>
+        <div class="stepper" data-opt="weld" data-steps="0,0.001,0.005,0.01,0.05,0.1,0.5,1">
+          <button type="button" data-dir="-1" aria-label="Decrease weld tolerance">−</button>
+          <output>exact</output>
+          <button type="button" data-dir="1" aria-label="Increase weld tolerance">+</button>
+        </div>
+      </div>
+      <div class="row kv">
+        <span class="k">Smooth angle<small>degrees</small></span>
+        <div class="stepper" data-opt="smooth_angle" data-steps="0.5,1,1.5,2,3,4,5,8,10,15">
+          <button type="button" data-dir="-1" aria-label="Decrease smooth angle">−</button>
+          <output>2</output>
+          <button type="button" data-dir="1" aria-label="Increase smooth angle">+</button>
+        </div>
+      </div>
+      <div class="row kv">
+        <span class="k">Threads</span>
+        <div class="seg" role="radiogroup" aria-label="Threads" data-opt="threads">
+          <button type="button" data-val="0" aria-pressed="true">auto</button>
+          <button type="button" data-val="1" aria-pressed="false">1</button>
+          <button type="button" data-val="2" aria-pressed="false">2</button>
+          <button type="button" data-val="4" aria-pressed="false">4</button>
+          <button type="button" data-val="8" aria-pressed="false">8</button>
+        </div>
+      </div>
+      <div class="toggles">
+        <button type="button" class="toggle" data-opt="verify" aria-pressed="true" role="switch"><i></i>Verify output</button>
+        <button type="button" class="toggle" data-opt="unify" aria-pressed="true" role="switch"><i></i>Unify coplanar faces</button>
+        <button type="button" class="toggle" data-opt="smooth_fillets" aria-pressed="true" role="switch"><i></i>Recover fillets</button>
+      </div>
+    </details>
+
+    <div class="actions">
+      <button type="button" class="primary" id="btn-convert" disabled>Convert to STEP</button>
+      <a class="secondary" id="btn-export" aria-disabled="true" role="button" href="#">Export STEP</a>
+    </div>
+
+    <section class="result" id="result" aria-labelledby="result-h" hidden>
+      <h3 id="result-h">Result <span class="job-name" id="result-name"></span></h3>
+      <dl class="stats" id="stats"></dl>
+      <div class="pills" id="pills"></div>
+      <details class="warn" id="warn" hidden>
+        <summary><span id="warn-title"></span></summary>
+        <ul id="warn-list"></ul>
+      </details>
+      <p class="err" id="result-err" hidden></p>
+    </section>
+  </aside>
+
+</div>
+<script type="module" src="/app.js"></script>
+</body>
+</html>

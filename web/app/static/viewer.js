@@ -1,0 +1,187 @@
+import * as THREE from './vendor/three.module.js';
+import { STLLoader } from './vendor/STLLoader.js';
+import { OrbitControls } from './vendor/OrbitControls.js';
+
+const stlLoader = new STLLoader();
+
+export function parseSTL(buffer) {
+  const g = stlLoader.parse(buffer);
+  g.computeBoundingBox();
+  g.computeBoundingSphere();
+  return g;
+}
+
+export function parseEdges(buffer) {
+  const n = Math.floor(buffer.byteLength / 24) * 6;
+  return n ? new Float32Array(buffer, 0, n) : null;
+}
+
+export function createViewer(canvas) {
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setClearColor(0x141414, 1);
+  renderer.autoClear = false;
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 10000);
+  camera.up.set(0, 0, 1);
+  camera.position.set(120, -160, 100);
+
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x3a3a3a, 0.9);
+  scene.add(hemi);
+  const key = new THREE.DirectionalLight(0xffffff, 1.1);
+  camera.add(key);
+  key.position.set(0.6, 0.8, 1.2);
+  scene.add(camera);
+
+  const meshMat = new THREE.MeshStandardMaterial({
+    color: 0xb9b9b9, roughness: 0.62, metalness: 0.08, flatShading: true, side: THREE.DoubleSide,
+    polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1,
+  });
+  const edgeMat = new THREE.LineBasicMaterial({ color: 0xf2f2f2 });
+
+  const controls = new OrbitControls(camera, canvas);
+  controls.enableDamping = false;
+  controls.addEventListener('change', invalidate);
+
+  const model = new THREE.Group();
+  scene.add(model);
+  let mesh = null, lines = null, wire = false;
+
+  // triad inset
+  const triadScene = new THREE.Scene();
+  const triadCam = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
+  triadCam.up.set(0, 0, 1);
+  triadScene.add(makeTriad());
+
+  let dirty = true, raf = 0;
+  function invalidate() {
+    dirty = true;
+    if (!raf) raf = requestAnimationFrame(frame);
+  }
+  function frame() {
+    raf = 0;
+    if (!dirty) return;
+    dirty = false;
+    render();
+  }
+  function render() {
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    renderer.setViewport(0, 0, w, h);
+    renderer.setScissor(0, 0, w, h);
+    renderer.setScissorTest(true);
+    renderer.clear();
+    renderer.render(scene, camera);
+    const s = Math.min(96, Math.floor(Math.min(w, h) * 0.22));
+    renderer.setViewport(10, 10, s, s);
+    renderer.setScissor(10, 10, s, s);
+    triadCam.position.copy(camera.position).sub(controls.target).normalize().multiplyScalar(6);
+    triadCam.lookAt(0, 0, 0);
+    renderer.clearDepth();
+    renderer.render(triadScene, triadCam);
+    renderer.setScissorTest(false);
+  }
+
+  function resize() {
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    if (!w || !h) return;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    invalidate();
+  }
+  new ResizeObserver(resize).observe(canvas);
+  resize();
+
+  function clear() {
+    for (const o of [mesh, lines]) if (o) { model.remove(o); o.geometry.dispose(); }
+    mesh = lines = null;
+    invalidate();
+  }
+
+  function setModel(geometry, edges) {
+    clear();
+    if (!geometry) return;
+    mesh = new THREE.Mesh(geometry, meshMat);
+    model.add(mesh);
+    let lg;
+    if (edges) {
+      lg = new THREE.BufferGeometry();
+      lg.setAttribute('position', new THREE.BufferAttribute(edges, 3));
+    } else {
+      lg = new THREE.EdgesGeometry(geometry, 1);
+    }
+    lines = new THREE.LineSegments(lg, edgeMat);
+    lines.visible = wire;
+    model.add(lines);
+    fit();
+  }
+
+  function fit() {
+    if (!mesh) return;
+    const g = mesh.geometry;
+    if (!g.boundingSphere) g.computeBoundingSphere();
+    const c = g.boundingSphere.center, r = Math.max(g.boundingSphere.radius, 1e-3);
+    const dist = r / Math.sin(THREE.MathUtils.degToRad(camera.fov / 2)) * 1.15;
+    const dir = new THREE.Vector3(0.55, -0.7, 0.45).normalize();
+    camera.position.copy(c).addScaledVector(dir, dist);
+    camera.near = dist / 100;
+    camera.far = dist * 20;
+    camera.updateProjectionMatrix();
+    controls.target.copy(c);
+    controls.update();
+    invalidate();
+  }
+
+  function setWire(on) {
+    wire = !!on;
+    if (lines) lines.visible = wire;
+    invalidate();
+  }
+
+  function snapshot(w = 192, h = 144) {
+    return new Promise((resolve) => {
+      render();
+      const out = document.createElement('canvas');
+      out.width = w; out.height = h;
+      const ctx = out.getContext('2d');
+      ctx.fillStyle = '#141414';
+      ctx.fillRect(0, 0, w, h);
+      const sw = canvas.width, sh = canvas.height;
+      const scale = Math.max(w / sw, h / sh);
+      const dw = sw * scale, dh = sh * scale;
+      ctx.drawImage(canvas, (w - dw) / 2, (h - dh) / 2, dw, dh);
+      out.toBlob(resolve, 'image/png');
+    });
+  }
+
+  return { setModel, setWire, fit, clear, snapshot, invalidate };
+}
+
+function makeTriad() {
+  const g = new THREE.Group();
+  const axes = [[1, 0, 0, 0xe05a5a, 'X'], [0, 1, 0, 0x5ac46a, 'Y'], [0, 0, 1, 0x5a8ee0, 'Z']];
+  for (const [x, y, z, color, label] of axes) {
+    const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(x, y, z).multiplyScalar(1.6)]);
+    g.add(new THREE.Line(geo, new THREE.LineBasicMaterial({ color })));
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: letterTexture(label, color), depthTest: false }));
+    sp.position.set(x, y, z).multiplyScalar(2.1);
+    sp.scale.set(0.7, 0.7, 1);
+    g.add(sp);
+  }
+  return g;
+}
+
+function letterTexture(letter, color) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const ctx = c.getContext('2d');
+  ctx.font = 'bold 44px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#' + color.toString(16).padStart(6, '0');
+  ctx.fillText(letter, 32, 34);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}

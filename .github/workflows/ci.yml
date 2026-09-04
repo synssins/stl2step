@@ -3,7 +3,9 @@ name: CI
 on:
   push:
     branches: [ main ]
+    paths-ignore: [ 'web/**' ]
   pull_request:
+    paths-ignore: [ 'web/**' ]
 
 # NOTE: This workflow is provided as a starting point. Linux and macOS install
 # OpenCASCADE from system package managers and are fast. Windows builds OCCT via

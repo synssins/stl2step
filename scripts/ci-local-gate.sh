@@ -14,7 +14,7 @@
 # Classification of `git diff --name-only <upstream>...HEAD`:
 #   BUILD-AFFECTING  src/ include/ tests/ CMakeLists.txt CMakePresets.json cmake/
 #                    plus any other non-docs, non-scripts/*.sh path (e.g. examples/)
-#   DOCS-ONLY        docs/  *.md  images/  image files  .github/  .gitignore
+#   DOCS-ONLY        docs/  *.md  images/  image files  .github/  .gitignore  web/ (container UI, not compiled)
 #   SCRIPT           scripts/*.sh and scripts/hooks/* — gate-relevant, not compiled
 #                    (macOS fresh-clone only; no linux/windows markers)
 #   Empty range (HEAD already matches upstream) is NOT docs-only — treated as
@@ -66,7 +66,7 @@ is_build_path() {
 
 is_docs_path() {
   case "$1" in
-    docs/*|.github/*|images/*|.gitignore) return 0 ;;
+    docs/*|.github/*|images/*|web/*|.gitignore) return 0 ;;
     *.md|*.png|*.jpg|*.jpeg|*.gif|*.svg|*.webp) return 0 ;;
   esac
   return 1

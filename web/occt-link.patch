@@ -1,0 +1,29 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index e947e25..4253638 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -97,6 +97,24 @@ else()
+     endif()
+ endif()
+ 
++# TKPrim (BRepPrimAPI_MakePrism) and TKBO (BRepAlgoAPI_Fuse) are used by the
++# TrueForm prism-rebuild path. Same transitive-link caveat as TKMesh above.
++foreach(_tk TKPrim TKBO)
++    if(TARGET ${_tk})
++        target_link_libraries(stl2step_core PUBLIC ${_tk})
++    else()
++        find_library(STL2STEP_${_tk} NAMES ${_tk}
++            HINTS "${OpenCASCADE_LIBRARY_DIR}" "${OpenCASCADE_BINARY_DIR}"
++                  ${OpenCASCADE_ROOT} $ENV{OpenCASCADE_ROOT} $ENV{CASROOT} ${CASROOT}
++            PATH_SUFFIXES lib lib64 win64/vc14/lib
++            PATHS /usr/lib /usr/local/lib /usr/lib/x86_64-linux-gnu
++                  /opt/homebrew/lib /opt/local/lib)
++        if(STL2STEP_${_tk})
++            target_link_libraries(stl2step_core PUBLIC "${STL2STEP_${_tk}}")
++        endif()
++    endif()
++endforeach()
++
+ if(MSVC)
+     target_compile_definitions(stl2step_core PRIVATE _USE_MATH_DEFINES NOMINMAX)
+     target_compile_options(stl2step_core PRIVATE /EHsc)
