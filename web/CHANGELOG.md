@@ -2,6 +2,10 @@
 
 ## 2026-09-04 (host fixes)
 
+- `Dockerfile.occt79`: same image against conda-forge OpenCASCADE 7.9 (the engine's CI calibration target).
+  Motivation: XendStop.stl in TrueForm on 7.6.3 hit `IntAna cyl|cyl empty/same` ×4 → J6 16 free edges →
+  component reverted to faceted (see repo `FINDINGS-CYLEDGES.md`).
+- `main.py`: CLI subprocess env now passes `LD_LIBRARY_PATH` and `STL2STEP_*` through (was `PATH` only).
 - UI: with a history job selected and no new files picked, the primary button becomes
   "Convert again · Verbatim|TrueForm" and reconverts that job with the current panel options
   (same as the ↻ row icon). First run on the Docker host confirmed: `converter: true`, real conversions.

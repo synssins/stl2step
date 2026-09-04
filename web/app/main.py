@@ -45,6 +45,9 @@ JOB_TIMEOUT_SEC = int(os.environ.get("JOB_TIMEOUT_SEC", "600"))
 CONCURRENCY = max(1, int(os.environ.get("CONCURRENCY", "1")))
 RETAIN_DAYS = int(os.environ.get("RETAIN_DAYS", "30"))
 STATIC_DIR = Path(__file__).parent / "static"
+CLI_ENV = {"PATH": "/usr/local/bin:/usr/bin:/bin",
+           **{k: v for k, v in os.environ.items() if k == "LD_LIBRARY_PATH" or k.startswith("STL2STEP_")}}
+CLI_ENV.pop("STL2STEP_BIN", None)
 
 THUMB_MAX_BYTES = 512 * 1024
 PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
@@ -199,7 +202,7 @@ def run_conversion(job_dir: Path, opts: ConvertOptions) -> dict:
     t0 = time.time()
     try:
         p = subprocess.run(argv, capture_output=True, text=True, timeout=JOB_TIMEOUT_SEC,
-                           cwd=job_dir, env={"PATH": "/usr/local/bin:/usr/bin:/bin"})
+                           cwd=job_dir, env=CLI_ENV)
         (job_dir / "stdout.txt").write_text(p.stdout)
         (job_dir / "stderr.txt").write_text(p.stderr)
         result = None
@@ -227,7 +230,7 @@ def run_mesh_pass(job_dir: Path) -> dict:
             "--edges", str(job_dir / "preview.edges"), "--quiet"]
     try:
         p = subprocess.run(argv, capture_output=True, text=True, timeout=JOB_TIMEOUT_SEC,
-                           cwd=job_dir, env={"PATH": "/usr/local/bin:/usr/bin:/bin"})
+                           cwd=job_dir, env=CLI_ENV)
     except subprocess.TimeoutExpired:
         return {"ok": False, "error": f"mesh pass timed out after {JOB_TIMEOUT_SEC}s"}
     except OSError as e:

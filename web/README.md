@@ -55,7 +55,10 @@ proper (it needs the three-platform CI gate), drop the `COPY`/`patch` lines from
 The image uses Ubuntu 24.04's OpenCASCADE **7.6.3**. The engine's CI is calibrated against 7.9, and TrueForm's
 recogniser can find fewer cylinders on 7.6 for some meshes. Verified on 7.6.3: `tests/corpus/handle-lock.stl`
 (908 triangles) → Verbatim 434 faces, TrueForm 35 faces (23 planes, 15 cylinders built, 0 rejected,
-volume delta 0.000 %). Upgrade path: install `occt=7.9` from conda-forge in both stages.
+volume delta 0.000 %). [`Dockerfile.occt79`](Dockerfile.occt79) is the same image built against conda-forge
+OCCT 7.9 (micromamba, `CMAKE_PREFIX_PATH=/opt/occt`, `LD_LIBRARY_PATH=/opt/occt/lib` at runtime); select it
+with `dockerfile: web/Dockerfile.occt79` in compose. `LD_LIBRARY_PATH` and any `STL2STEP_*` environment
+variables (engine diagnostics) are passed through to the CLI subprocess.
 
 ## API
 
